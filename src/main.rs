@@ -6,10 +6,11 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
     targets: Vec<String>,
+    include_curr: bool,
 }
 
 impl ::std::default::Default for Config {
-    fn default() -> Self { Self { targets: vec![".git".to_string(), ".config".to_string()] } }
+    fn default() -> Self { Self { targets: vec![".git".to_string(), ".config".to_string()], include_curr: true} }
 }
 
 fn main() -> Result<(), confy::ConfyError> {
@@ -22,23 +23,29 @@ fn main() -> Result<(), confy::ConfyError> {
     match curr_dir.to_str() {
         Some(dir_str) => {
             let dir_tokens = dir_str.split('/').collect();
-            process_dir_tokens(dir_tokens, &cfg.targets).unwrap();
+            let dest = process_dir_tokens(dir_tokens, &cfg.targets, cfg.include_curr);
+            // Print to stdout so that this can be captured and used in a script
+            println!("{}", dest);
         }
         None => panic!("Unable to parse directory")
     }
     Ok(())
 }
 
-fn process_dir_tokens(dir_tokens: Vec<&str>, targets: &Vec<String>) -> Result<(), std::io::Error> {
-    for i in (2..dir_tokens.len()).rev() {
+fn process_dir_tokens(dir_tokens: Vec<&str>, targets: &Vec<String>, include_curr_dir: bool) -> String {
+    let token_len = match include_curr_dir {
+        true => dir_tokens.len() + 1,
+        false => dir_tokens.len(),
+    };
+    for i in (2..token_len).rev() {
         let sub_dir = &dir_tokens[..i];
         let full_path = sub_dir.join("/");
         if check_dir(&full_path, targets) {
-            println!("{}", full_path);
-            return Ok(());
+            return full_path;
         }
     }
-    Ok(())
+    // We return the current directory if there is nothing valid to jump to
+    dir_tokens.join("/")
 }
 
 fn check_dir(directory: &String, targets: &Vec<String>) -> bool {
